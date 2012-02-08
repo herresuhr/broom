@@ -3,6 +3,8 @@
 import itertools as it
 from collections import OrderedDict as odict
 
+# Comment
+
 # inspiration from these sources:
 # http://stackoverflow.com/questions/5228158/cartesian-product-of-a-dictionary-of-lists
 
