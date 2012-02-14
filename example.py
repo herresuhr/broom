@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import broom
+import pytabroom
 
 # define the dict keys and values to loop over like this. the order they
 # are added determines at which level they are in the nested for loop
@@ -33,6 +34,7 @@ def calculate_stuff2(a=7, b=2, s=5, stringjoe='moe'):
 
 
 # the self.looper attribute is to be looped over
+sw.params = []
 for how_far, params in sw.looper:
     print 'how far:', how_far, ', with params', params
 
@@ -43,7 +45,10 @@ for how_far, params in sw.looper:
     # append results
     sw.append('res1', res1)
     sw.append('res2', res2)
+    sw.params.append(tuple(params.values()))
 
     sw.save_to_disk('saveme.sweep')
 
 print sw.results
+
+pytabroom.pytasave("example", sw)
