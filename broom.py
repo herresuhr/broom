@@ -2,6 +2,9 @@
 
 import itertools as it
 from collections import OrderedDict as odict
+import numpy as np
+from copy import deepcopy
+import pickle
 
 # Comment
 
@@ -30,46 +33,77 @@ class Sweeper(object):
     of looping over nested loops
     """
 
-    def __init__(self, *args):
+    def __init__(self, dicts, result_names=None):
+        # add input dicts to OrderedDict
         self.sweep_dict = odict()
-        for a in args:
+        for a in dicts:
             self.sweep_dict.update(a)
 
-        self.looper = self.loop_generator()
+        self._create_results_dict(result_names)
 
-    def loop_generator(self):
-        for p in it.product(*self.sweep_dict.values()):
-            yield dict(zip(self.sweep_dict.keys(), p))
+        # generator object
+        self.looper = self._loop_generator()
 
+    def _create_results_dict(self, result_names):
+        if result_names is not None:
+            # find results array shape
+            self._sweep_shape = \
+            np.array([len(x) for x in self.sweep_dict.values()])
+            nan_array = np.zeros(self._sweep_shape).astype(object)
+            nan_array[:] = np.nan
 
-if __name__ == '__main__':
+            self.results = {}
+            for name in result_names:
+                self.results.update({name: nan_array.copy()})
 
-    # define the dict keys and values to loop over like this. the order they
-    # are added determines at which level they are in the nested for loop
-    sw = Sweeper({'a': [1, 2]},
-                 {'b': range(66, 69)},
-                 {'stringjoe': ['l33t', 'haxx0r']})
+    def default_params(self, *dicts):
+        self.default_params = []
+        for d in dicts:
+            self.default_params.append(d)
 
-    # dicts containing default parameters
-    default_params1 = {'a': 5,
-                       'c': 66,
-                       'stringjoe': 'a string!'}
+    def append(self, result_name, result):
+        # append result to the correct entry in self.results and
+        # use the for loop in _loop_gen get the multi ravel index
+        if result_name not in self.results.keys():
+            estr = 'result name' + result_name + ' is not found in result dict!'
+            raise ValueError(estr)
 
-    default_params2 = {'b': 2,
-                       's': 22,
-                       'stringjoe': 'another string!'}
+        self._mult_idx = np.unravel_index(self._n_loop, self._sweep_shape)
+        self.results[result_name][self._mult_idx] = result
 
-    print 'default_params1', default_params1
-    print 'default_params2', default_params2
+    def _how_far(self):
+        where_now = \
+        np.array(np.unravel_index(self._n_loop, self._sweep_shape), dtype=float)
+        how_far = list(100 * (1 + where_now) / self._sweep_shape)
+        return ' '.join([str(x) + '%' for x in how_far])
 
-    # the self.looper attribute is to be looped over
-    for params in sw.looper:
-        # update default parameter dicts
-        update_dict_if_key_exists(default_params1, params)
-        update_dict_if_key_exists(default_params2, params)
+    def save_to_disk(self, fn='generic.sweep'):
+        """
+        saves important data to disk, these are:
+        self.results
+        self.default_params
+        self.sweep_dict
 
-        print 'updated default_params1', default_params1
-        print 'updated default_params2', default_params2
-        print '*' * 5
+        input:
+        fn: filename of saved file
 
-        # pass dicts to whatever and save results
+        note:
+        you cannot pickle (save) or copy objects with generators in python
+        hence this selection, else just saving self would be easier
+        """
+        to_save = {}
+        to_save['results'] = self.results
+        to_save['default_params'] = self.default_params
+        to_save['sweep_dict'] = self.sweep_dict
+        f = open(fn, 'w')
+        pickle.dump(to_save, f)
+        f.close()
+
+    def _loop_generator(self):
+        for n_loop, p in enumerate(it.product(*self.sweep_dict.values())):
+            self._n_loop = n_loop
+            kwargs = dict(zip(self.sweep_dict.keys(), p))
+            # update default param dicts
+            for d in self.default_params:
+                update_dict_if_key_exists(d, kwargs)
+            yield self._how_far(), kwargs
